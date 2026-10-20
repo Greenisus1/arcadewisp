@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
 """Original offline fullscreen Pong. Keyboard taps glide briefly for SSH play."""
 import curses,json,math,os,random,time
+
+try:
+    import pi18n
+except ImportError:
+    pi18n = None
+from arcade import DEFAULT_STRINGS
 from pathlib import Path
 from ui import put,run
 VERSION='1.1.0'
@@ -59,6 +65,8 @@ def loop(s):
   curses.start_color();curses.use_default_colors()
   for i,c in enumerate((curses.COLOR_CYAN,curses.COLOR_MAGENTA,curses.COLOR_YELLOW,curses.COLOR_WHITE),1):curses.init_pair(i,c,-1)
  def color(i):return curses.color_pair(i) if curses.has_colors() else 0
+ S=pi18n.load('arcadewisp',DEFAULT_STRINGS) if pi18n else DEFAULT_STRINGS
+ diffname={'easy':S['EASY'],'normal':S['NORMAL'],'hard':S['HARD']}[difficulty]
  while True:
   h,w=s.getmaxyx();key=s.getch();now=time.monotonic();dt=min(.08,now-last);last=now;s.erase()
   if key in (27,ord('q'),ord('Q')):return
@@ -68,13 +76,14 @@ def loop(s):
    if key in (ord('m'),ord('M')):two=not two
    if key in (ord('c'),ord('C')):mode=('classic','gate','sprint')[(('classic','gate','sprint').index(mode)+1)%3]
    if key in (10,13):g=Pong(w,h,difficulty=difficulty,two=two,mode=mode);menu=False;paused=False;recorded=False;trail=[]
-   put(s,2,max(2,w//2-13),'ARCADEWISP / PADDLE DUEL',color(1)|curses.A_BOLD)
-   lines=['Original offline paddle duel','1 Easy   2 Normal   3 Hard','Selected: '+difficulty.upper(),'M players: '+('TWO PLAYERS' if two else 'VS COMPUTER'),'C challenge: '+mode.upper(),'Enter start   Q quit','Player 1: W/S   Player 2: Up/Down','Solo: W/S or Up/Down','Space pause   R restart   H menu','First to 7. Hits speed up the rally.','SSH taps glide briefly; key-repeat keeps moving.','Two-player input is interleaved, not true simultaneous key sensing.']
+   put(s,2,max(2,w//2-13),S['DUEL_TITLE'],color(1)|curses.A_BOLD)
+   diffname={'easy':S['EASY'],'normal':S['NORMAL'],'hard':S['HARD']}[difficulty]
+   lines=[S['DUEL_TAG'],S['DUEL_DIFFS'],S['DUEL_SELECTED'].format(diff=diffname),S['DUEL_PLAYERS'].format(who=S['TWO'] if two else S['SOLO']),S['DUEL_MODE'].format(mode=mode.upper()),S['DUEL_START'],S['DUEL_P1'],S['DUEL_SOLOKEYS'],S['DUEL_KEYS'],S['DUEL_RULE'],S['DUEL_TAPS'],S['DUEL_INPUT_NOTE']]
    for i,t in enumerate(lines):put(s,5+i,max(2,w//2-30),t,color(4))
    scores=load_scores().get(('two' if two else difficulty)+'-'+mode,{})
-   put(s,20,max(2,w//2-30),'Local best rally: '+str(scores.get('best_rally',0))+' | games: '+str(scores.get('games',0)),color(3))
+   put(s,20,max(2,w//2-30),S['BEST_RALLY'].format(rally=scores.get('best_rally',0),games=scores.get('games',0)),color(3))
    s.refresh();continue
-  if key==curses.KEY_RESIZE:g=Pong(w,h,difficulty=difficulty,two=two,mode=mode);recorded=False;trail=[];paused=True;notice='Resized: match restarted, Space resumes.'
+  if key==curses.KEY_RESIZE:g=Pong(w,h,difficulty=difficulty,two=two,mode=mode);recorded=False;trail=[];paused=True;notice=S['RESIZED']
   if key==ord(' '):paused=not paused;left_until=right_until=0
   if key in (ord('r'),ord('R')):g=Pong(w,h,difficulty=difficulty,two=two,mode=mode);paused=False;recorded=False;trail=[];notice=''
   if key in (ord('w'),ord('W'),ord('s'),ord('S')):left_dir=-1 if key in (ord('w'),ord('W')) else 1;left_until=now+.13
@@ -82,12 +91,12 @@ def loop(s):
    direction=-1 if key==curses.KEY_UP else 1
    if two:right_dir=direction;right_until=now+.13
    else:left_dir=direction;left_until=now+.13
-  if w<50 or h<23:put(s,2,2,'Resize to at least 50x23. Match paused. Q quits.');s.refresh();continue
+  if w<50 or h<23:put(s,2,2,S['RESIZE_PONG']);s.refresh();continue
   finished=max(g.score)>=7
   if not paused and not finished:g.step(dt,left_dir if now<left_until else 0,right_dir if now<right_until else 0);trail=(trail+[(g.x,g.y)])[-5:]
-  if finished and not recorded:notice='Result saved locally.' if save_result(g) else 'Result not saved (local storage unavailable).';recorded=True
-  put(s,0,2,'PONG | '+difficulty.upper()+' | '+('TWO PLAYERS' if two else 'VS COMPUTER')+' | '+mode.upper(),color(1)|curses.A_BOLD)
-  put(s,1,2,'LEFT '+str(g.score[0])+'   :   '+str(g.score[1])+' RIGHT    Rally '+str(g.rally)+' / best '+str(g.best),color(3)|curses.A_BOLD)
+  if finished and not recorded:notice=S['SAVED'] if save_result(g) else S['NOT_SAVED'];recorded=True
+  put(s,0,2,S['PONG_HUD'].format(diff=diffname,who=S['TWO'] if two else S['SOLO'],mode=mode.upper()),color(1)|curses.A_BOLD)
+  put(s,1,2,S['PONG_SCORE'].format(l=g.score[0],r=g.score[1],rally=g.rally,best=g.best),color(3)|curses.A_BOLD)
   for y in range(3,h-3,2):put(s,y,w//2,'┆',curses.A_DIM)
   if mode=='gate':
    gate=g.h/2+math.sin(g.elapsed*.8)*max(0,g.h/2-6)
@@ -96,11 +105,11 @@ def loop(s):
   for x,y in trail[:-1]:put(s,round(y),round(x),'·',color(1)|curses.A_DIM)
   for n in range(-2,3):put(s,round(g.left)+n,2,'█',color(1));put(s,round(g.right)+n,w-3,'█',color(2))
   put(s,round(g.y),round(g.x),'●',color(3)|curses.A_BOLD)
-  if finished:put(s,h//2,max(2,w//2-15),('LEFT WINS' if g.score[0]>=7 else 'RIGHT WINS')+' | R rematch',color(3)|curses.A_BOLD)
-  elif paused:put(s,h//2,w//2-8,'PAUSED | Space',color(3))
-  elif g.serve>0:put(s,h//2+2,max(2,w//2-8),'READY TO SERVE',color(3))
-  put(s,h-2,2,notice or 'W/S left | arrows solo/right | Space pause | R restart | H menu | Q quit')
-  put(s,h-1,2,'First to 7 | local scores | no accounts, ads, network or paid services',color(1))
+  if finished:put(s,h//2,max(2,w//2-15),(S['LEFT_WINS'] if g.score[0]>=7 else S['RIGHT_WINS'])+S['REMATCH_TAIL'],color(3)|curses.A_BOLD)
+  elif paused:put(s,h//2,w//2-8,S['PAUSED_SERVE'],color(3))
+  elif g.serve>0:put(s,h//2+2,max(2,w//2-8),S['SERVE'],color(3))
+  put(s,h-2,2,notice or S['HELP_PONG'])
+  put(s,h-1,2,S['FOOT_PONG'],color(1))
   s.refresh()
 if __name__=='__main__':
  import sys
