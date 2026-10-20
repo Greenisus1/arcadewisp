@@ -1,6 +1,14 @@
 #!/usr/bin/env python3
 """Original offline terminal arcade collection; no commercial assets or unlocks."""
 import curses,json,os,random,time
+
+try:
+    import pi18n
+except ImportError:
+    pi18n = None
+
+# English UI strings; the Translations app owns every language via ~/pi-translations.
+DEFAULT_STRINGS = {'TITLE': 'ARCADEWISP | TERMINAL ARCADE', 'MODE_HUD': 'ARCADEWISP | {mode} | level {level}', 'SCORE_HUD': 'Score {score} | lives {lives}', 'WAVE_CLEAR': 'WAVE CLEAR', 'RUN_ENDED': 'RUN ENDED', 'RETRY_TAIL': ' | R retry', 'PAUSED': 'PAUSED', 'HELP': 'A/D or arrows move | F fire (invaders) | Space pause | R retry | Q menu', 'HINT': 'Drop: steer through gaps. Bricks: keep the ball up. Invaders: clear the wave.', 'RESIZE_MINI': 'Resize to 50x25. Q returns to menu.', 'MENU1': '1 Paddle duel (classic, gate, sprint; solo/two players)', 'MENU2': '2 Brick breaker - clear the colored wall', 'MENU3': '3 Invaders - dodge and shoot the wave', 'MENU4': '4 Drop - steer through rising platform gaps', 'MENU_LEVEL': '+/- level for bricks/invaders: {level}', 'MENU_FREE': 'All modes included. No paid unlocks.', 'MENU_LOCAL': 'Local best scores and badges. No Game Center/network.', 'MENU_QUIT': 'Q quits. Minimum terminal 50x25.', 'RECORD_ROW': '{mode}: best {best} | {badges}', 'DUEL_TITLE': 'ARCADEWISP / PADDLE DUEL', 'DUEL_TAG': 'Original offline paddle duel', 'DUEL_DIFFS': '1 Easy   2 Normal   3 Hard', 'DUEL_SELECTED': 'Selected: {diff}', 'DUEL_PLAYERS': 'M players: {who}', 'TWO': 'TWO PLAYERS', 'SOLO': 'VS COMPUTER', 'DUEL_MODE': 'C challenge: {mode}', 'DUEL_START': 'Enter start   Q quit', 'DUEL_P1': 'Player 1: W/S   Player 2: Up/Down', 'DUEL_SOLOKEYS': 'Solo: W/S or Up/Down', 'DUEL_KEYS': 'Space pause   R restart   H menu', 'DUEL_RULE': 'First to 7. Hits speed up the rally.', 'DUEL_TAPS': 'SSH taps glide briefly; key-repeat keeps moving.', 'DUEL_INPUT_NOTE': 'Two-player input is interleaved, not true simultaneous key sensing.', 'BEST_RALLY': 'Local best rally: {rally} | games: {games}', 'RESIZED': 'Resized: match restarted, Space resumes.', 'RESIZE_PONG': 'Resize to at least 50x23. Match paused. Q quits.', 'SAVED': 'Result saved locally.', 'NOT_SAVED': 'Result not saved (local storage unavailable).', 'PONG_HUD': 'PONG | {diff} | {who} | {mode}', 'PONG_SCORE': 'LEFT {l}   :   {r} RIGHT    Rally {rally} / best {best}', 'LEFT_WINS': 'LEFT WINS', 'RIGHT_WINS': 'RIGHT WINS', 'REMATCH_TAIL': ' | R rematch', 'PAUSED_SERVE': 'PAUSED | Space', 'SERVE': 'READY TO SERVE', 'HELP_PONG': 'W/S left | arrows solo/right | Space pause | R restart | H menu | Q quit', 'FOOT_PONG': 'First to 7 | local scores | no accounts, ads, network or paid services', 'EASY': 'EASY', 'NORMAL': 'NORMAL', 'HARD': 'HARD'}
 from pathlib import Path
 from ui import put,run
 import paddles
@@ -89,6 +97,7 @@ def record(mode,score,won=False):
  except (OSError,ValueError,TypeError):return False
 
 def mini(s,mode,level):
+ S=pi18n.load('arcadewisp',DEFAULT_STRINGS) if pi18n else DEFAULT_STRINGS
  h,w=s.getmaxyx();cls={'bricks':Bricks,'invaders':Invaders,'drop':Drop}[mode];g=cls(w,h,level);s.timeout(16);last=time.monotonic();paused=False;direction=0;until=0;recorded=False;note=''
  def color(i):return curses.color_pair(i) if curses.has_colors() else 0
  while True:
@@ -100,26 +109,27 @@ def mini(s,mode,level):
   if key in (ord('r'),ord('R'),curses.KEY_RESIZE):g=cls(w,h,level);recorded=False;paused=key==curses.KEY_RESIZE
   if key in (ord('a'),ord('A'),curses.KEY_LEFT):direction=-1;until=now+.13
   if key in (ord('d'),ord('D'),curses.KEY_RIGHT):direction=1;until=now+.13
-  if w<50 or h<25:put(s,2,2,'Resize to 50x25. Q returns to menu.');s.refresh();continue
+  if w<50 or h<25:put(s,2,2,S['RESIZE_MINI']);s.refresh();continue
   if not paused and not g.over:g.step(dt,direction if now<until else 0,key in (ord('f'),ord('F'),curses.KEY_UP))
   if g.over and not recorded:note='Saved locally.' if record(mode,g.score,g.won) else 'Scores not saved.';recorded=True
-  put(s,0,2,'ARCADEWISP | '+mode.upper()+' | level '+str(level),color(1)|curses.A_BOLD);put(s,1,2,'Score '+str(g.score)+' | lives '+str(g.lives),color(3));g.draw(s,color)
-  if g.over:put(s,h//2,max(2,w//2-16),('WAVE CLEAR' if g.won else 'RUN ENDED')+' | R retry',color(3)|curses.A_BOLD)
-  elif paused:put(s,h//2,w//2-4,'PAUSED',color(3))
-  put(s,h-2,2,note or 'A/D or arrows move | F fire (invaders) | Space pause | R retry | Q menu')
-  put(s,h-1,2,'Drop: steer through gaps. Bricks: keep the ball up. Invaders: clear the wave.',color(1));s.refresh()
+  put(s,0,2,S['MODE_HUD'].format(mode=mode.upper(),level=level),color(1)|curses.A_BOLD);put(s,1,2,S['SCORE_HUD'].format(score=g.score,lives=g.lives),color(3));g.draw(s,color)
+  if g.over:put(s,h//2,max(2,w//2-16),(S['WAVE_CLEAR'] if g.won else S['RUN_ENDED'])+S['RETRY_TAIL'],color(3)|curses.A_BOLD)
+  elif paused:put(s,h//2,w//2-4,S['PAUSED'],color(3))
+  put(s,h-2,2,note or S['HELP'])
+  put(s,h-1,2,S['HINT'],color(1));s.refresh()
 def loop(s):
  if curses.has_colors():
   curses.start_color();curses.use_default_colors()
   for i,c in enumerate((curses.COLOR_CYAN,curses.COLOR_MAGENTA,curses.COLOR_YELLOW,curses.COLOR_WHITE),1):curses.init_pair(i,c,-1)
+ S=pi18n.load('arcadewisp',DEFAULT_STRINGS) if pi18n else DEFAULT_STRINGS
  s.timeout(100);level=1
  while True:
-  s.erase();h,w=s.getmaxyx();put(s,2,max(2,w//2-16),'ARCADEWISP | TERMINAL ARCADE',curses.A_BOLD)
-  lines=['1 Paddle duel (classic, gate, sprint; solo/two players)','2 Brick breaker - clear the colored wall','3 Invaders - dodge and shoot the wave','4 Drop - steer through rising platform gaps','+/- level for bricks/invaders: '+str(level),'All modes included. No paid unlocks.','Local best scores and badges. No Game Center/network.','Q quits. Minimum terminal 50x25.']
+  s.erase();h,w=s.getmaxyx();put(s,2,max(2,w//2-16),S['TITLE'],curses.A_BOLD)
+  lines=[S['MENU1'],S['MENU2'],S['MENU3'],S['MENU4'],S['MENU_LEVEL'].format(level=level),S['MENU_FREE'],S['MENU_LOCAL'],S['MENU_QUIT']]
   for i,t in enumerate(lines):put(s,5+i*2,3,t)
   data=records()
   for i,mode in enumerate(('bricks','invaders','drop')):
-   row=data.get(mode,{});put(s,h-4+i,3,mode+': best '+str(row.get('best',0))+' | '+', '.join(row.get('badges',[])))
+   row=data.get(mode,{});put(s,h-4+i,3,S['RECORD_ROW'].format(mode=mode,best=row.get('best',0),badges=', '.join(row.get('badges',[]))))
   s.refresh();key=s.getch()
   if key in (27,ord('q'),ord('Q')):return
   if key in (ord('+'),ord('=')):level=min(5,level+1)
