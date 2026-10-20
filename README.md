@@ -1,3 +1,8 @@
+## Languages
+
+Works with the Translations app: pick a language there and the menus, HUDs and help lines switch to it (English, Espanol, Francais, Deutsch). With no Translations app installed it runs in English as usual.
+
+## Run
 # Arcadewisp
 
 Original fullscreen offline terminal arcade for Linux and SSH. All games are included, no ads, API keys, accounts, network requests or paid unlocks. This is not the Apple Watch app and doesn't copy its code or artwork.
